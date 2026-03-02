@@ -8,9 +8,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # URL de conexión a la base de datos
+# Usamos el driver psycopg (psycopg3) por defecto.
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/test_ia_db"
+    "postgresql+psycopg://postgres:postgres@localhost:5432/test_ia_db",
 )
 
 engine = create_engine(DATABASE_URL, echo=False)

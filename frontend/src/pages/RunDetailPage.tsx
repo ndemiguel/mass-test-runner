@@ -43,7 +43,8 @@ function RunDetailPage() {
       setLoading(true)
       const filter =
         activeTab === 'summary' ? undefined : activeTab === 'all' ? 'all' : activeTab
-      const data = await apiService.getRunDetails(runId, filter as any)
+      // Cargar todos los casos (límite máximo del backend es 1000)
+      const data = await apiService.getRunDetails(runId, filter as any, 1000, 0)
       setDetails(data)
     } catch (error) {
       console.error('Error loading details:', error)
