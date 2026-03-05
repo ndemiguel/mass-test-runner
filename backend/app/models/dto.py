@@ -53,6 +53,7 @@ class RunSummary(BaseModel):
     run_id: str
     plugin_name: str
     status: str
+    config: Optional[Dict]
     created_at: datetime
     accuracy: Optional[float] = None
     coverage: Optional[float] = None

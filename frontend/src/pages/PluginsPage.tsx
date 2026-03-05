@@ -68,20 +68,27 @@ function PluginsPage() {
     setShowForm(true)
   }
 
-  const handleEditClick = (plugin: PluginInfo) => {
+  const handleEditClick = async (plugin: PluginInfo) => {
     if (plugin.plugin_name === 'demo') {
       alert('No se puede editar el plugin demo')
       return
     }
-    setEditingPlugin(plugin)
-    setFormData({
-      plugin_name: plugin.plugin_name,
-      display_name: plugin.display_name,
-      code: '',
-      config_schema: plugin.config_schema,
-    })
-    setConfigSchemaJson(JSON.stringify(plugin.config_schema, null, 2))
-    setShowForm(true)
+    try {
+      // Cargar el plugin completo con código
+      const fullPlugin = await apiService.getPlugin(plugin.plugin_name, true)
+      setEditingPlugin(fullPlugin)
+      setFormData({
+        plugin_name: fullPlugin.plugin_name,
+        display_name: fullPlugin.display_name,
+        code: fullPlugin.code || '',
+        config_schema: fullPlugin.config_schema,
+      })
+      setConfigSchemaJson(JSON.stringify(fullPlugin.config_schema, null, 2))
+      setShowForm(true)
+    } catch (error) {
+      console.error('Error loading plugin code:', error)
+      alert('Error al cargar el código del plugin')
+    }
   }
 
   const handleCancel = () => {

@@ -1,4 +1,5 @@
 """Aplicación principal FastAPI"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
@@ -11,10 +12,19 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS para permitir requests del frontend
+# Orígenes permitidos
+origins = [
+    "http://bmlnxtest01.catmain.local:3015",
+    "http://localhost:3015",
+    "http://localhost:5174",
+    "http://localhost:5173",
+    "http://localhost:3000",
+]
+
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5174","http://localhost:5173", "http://localhost:3000"],  # Vite default port
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

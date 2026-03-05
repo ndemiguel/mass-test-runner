@@ -1,16 +1,32 @@
-import { useState, useEffect } from 'react'
+// RunDetailPage.tsx
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiService, RunSummary, RunDetail } from '../services/api'
 import './RunDetailPage.css'
 
 type TabType = 'summary' | 'mismatches' | 'all' | 'errors'
 
+// Si tu backend devuelve config dentro de getRun(), lo mostramos.
+// Si todavía no está tipado en RunSummary, lo leemos de forma segura.
+type RunWithConfig = RunSummary & {
+  config?: Record<string, any>
+  completed_at?: string | null
+}
+
 function RunDetailPage() {
   const { runId } = useParams<{ runId: string }>()
   const navigate = useNavigate()
-  const [run, setRun] = useState<RunSummary | null>(null)
+
+  const [run, setRun] = useState<RunWithConfig | null>(null)
   const [details, setDetails] = useState<RunDetail[]>([])
-  const [loading, setLoading] = useState(true)
+
+  // Loading separado para no “bloquear” toda la pantalla
+  const [loadingRun, setLoadingRun] = useState(true)
+  const [loadingDetails, setLoadingDetails] = useState(true)
+
+  // Polling visual “suave”
+  const [isPolling, setIsPolling] = useState(false)
+
   const [activeTab, setActiveTab] = useState<TabType>('summary')
   const [selectedCase, setSelectedCase] = useState<RunDetail | null>(null)
   const [commentForm, setCommentForm] = useState({
@@ -19,28 +35,64 @@ function RunDetailPage() {
     reviewed: false,
   })
 
+  // UI config panel
+  const [showConfig, setShowConfig] = useState(false)
+  const [copyOk, setCopyOk] = useState(false)
+
+  const filterForApi = useMemo(() => {
+    if (activeTab === 'summary') return undefined
+    if (activeTab === 'all') return 'all'
+    return activeTab
+  }, [activeTab])
+
+  // Carga inicial / cambio de tab
   useEffect(() => {
-    if (runId) {
-      loadRun()
-      loadDetails()
-    }
+    if (!runId) return
+    void loadRun(false)
+    void loadDetails(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId, activeTab])
 
-  const loadRun = async () => {
+  // Polling cuando está running: refresca run + details, sin bloquear la tabla
+  useEffect(() => {
+    if (!runId) return
+    if (!run) return
+    if (run.status !== 'running') return
+
+    const interval = setInterval(() => {
+      setIsPolling(true)
+      void loadRun(true)
+      void loadDetails(true)
+    }, 2000)
+
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runId, run?.status, filterForApi])
+
+  useEffect(() => {
+    if (!isPolling) return
+    const t = setTimeout(() => setIsPolling(false), 350)
+    return () => clearTimeout(t)
+  }, [isPolling])
+
+  const loadRun = async (silent: boolean) => {
     if (!runId) return
     try {
-      const data = await apiService.getRun(runId)
+      if (!silent) setLoadingRun(true)
+      const data = (await apiService.getRun(runId)) as RunWithConfig
       setRun(data)
     } catch (error) {
       console.error('Error loading run:', error)
-      alert('Error al cargar run')
+      if (!silent) alert('Error al cargar run')
+    } finally {
+      if (!silent) setLoadingRun(false)
     }
   }
 
-  const loadDetails = async () => {
+  const loadDetails = async (silent: boolean) => {
     if (!runId) return
     try {
-      setLoading(true)
+      setLoadingDetails(true)
       const filter =
         activeTab === 'summary' ? undefined : activeTab === 'all' ? 'all' : activeTab
       // Cargar todos los casos (límite máximo del backend es 1000)
@@ -48,9 +100,9 @@ function RunDetailPage() {
       setDetails(data)
     } catch (error) {
       console.error('Error loading details:', error)
-      alert('Error al cargar detalles')
+      if (!silent) alert('Error al cargar detalles')
     } finally {
-      setLoading(false)
+      if (!silent) setLoadingDetails(false)
     }
   }
 
@@ -78,8 +130,10 @@ function RunDetailPage() {
       await apiService.addComment(runId, selectedCase.case_id, commentForm)
       setSelectedCase(null)
       setCommentForm({ comment: '', tag: '', reviewed: false })
-      loadDetails()
-      loadRun()
+
+      // refresco “suave”: no bloqueamos la tabla
+      void loadDetails(true)
+      void loadRun(true)
     } catch (error) {
       console.error('Error saving comment:', error)
       alert('Error al guardar comentario')
@@ -91,7 +145,7 @@ function RunDetailPage() {
     setCommentForm({
       comment: detail.comment || '',
       tag: detail.tag || '',
-      reviewed: detail.reviewed,
+      reviewed: !!detail.reviewed,
     })
   }
 
@@ -100,8 +154,42 @@ function RunDetailPage() {
     return `${(value * 100).toFixed(1)}%`
   }
 
-  if (!run) {
+  const formatDate = (dateString?: string | null) => {
+    if (!dateString) return '-'
+    return new Date(dateString).toLocaleString('es-ES')
+  }
+
+  const configJson = useMemo(() => {
+    const cfg = run?.config ?? {}
+    try {
+      return JSON.stringify(cfg, null, 2)
+    } catch {
+      return String(cfg)
+    }
+  }, [run?.config])
+
+  const hasConfig = useMemo(() => {
+    const cfg = run?.config
+    return cfg && typeof cfg === 'object' && Object.keys(cfg).length > 0
+  }, [run?.config])
+
+  const handleCopyConfig = async () => {
+    try {
+      await navigator.clipboard.writeText(configJson)
+      setCopyOk(true)
+      setTimeout(() => setCopyOk(false), 1200)
+    } catch (e) {
+      console.error('Clipboard error:', e)
+      alert('No se pudo copiar al portapapeles')
+    }
+  }
+
+  if (loadingRun && !run) {
     return <div className="loading">Cargando...</div>
+  }
+
+  if (!run) {
+    return <div className="loading">No se encontró el run</div>
   }
 
   return (
@@ -110,7 +198,30 @@ function RunDetailPage() {
         <button className="btn btn-sm" onClick={() => navigate('/')}>
           ← Volver
         </button>
-        <h1>Run: {run.run_id.substring(0, 8)}...</h1>
+
+        <div className="detail-title">
+          <h1>Run: {run.run_id.substring(0, 8)}...</h1>
+          <div className="detail-subtitle">
+            <span className={`status status-${run.status}`}>{run.status}</span>
+            <span className="muted">•</span>
+            <span className="muted">Creado: {formatDate(run.created_at)}</span>
+            {run.completed_at && (
+              <>
+                <span className="muted">•</span>
+                <span className="muted">Fin: {formatDate(run.completed_at)}</span>
+              </>
+            )}
+            {isPolling && (
+              <>
+                <span className="muted">•</span>
+                <span className="polling-indicator">
+                  <span className="mini-spinner" /> Actualizando…
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+
         <button className="btn btn-primary" onClick={handleExportCSV}>
           Exportar CSV
         </button>
@@ -143,6 +254,48 @@ function RunDetailPage() {
         </div>
       </div>
 
+      {/* Config panel */}
+      <div className="config-panel">
+        <div className="config-panel-header">
+          <div className="config-panel-title">
+            <h3>Configuración</h3>
+            <span className="muted">
+              Plugin: <strong>{run.plugin_name}</strong>
+            </span>
+          </div>
+
+          <div className="config-panel-actions">
+            <button
+              type="button"
+              className="btn btn-secondary btn-compact"
+              onClick={() => setShowConfig((v) => !v)}
+            >
+              {showConfig ? 'Ocultar' : 'Mostrar'}
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-secondary btn-compact"
+              onClick={handleCopyConfig}
+              disabled={!hasConfig}
+              title={hasConfig ? 'Copiar JSON al portapapeles' : 'No hay config'}
+            >
+              {copyOk ? 'Copiado ✓' : 'Copiar JSON'}
+            </button>
+          </div>
+        </div>
+
+        {showConfig && (
+          <div className="config-panel-body">
+            {!hasConfig ? (
+              <div className="muted">Este run no tiene config (vacío).</div>
+            ) : (
+              <pre className="config-pre">{configJson}</pre>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="tabs">
         <button
           className={`tab ${activeTab === 'summary' ? 'active' : ''}`}
@@ -170,7 +323,7 @@ function RunDetailPage() {
         </button>
       </div>
 
-      {loading ? (
+      {loadingDetails ? (
         <div className="loading">Cargando...</div>
       ) : (
         <div className="details-table-container">
@@ -204,15 +357,19 @@ function RunDetailPage() {
                   </td>
                   <td>{detail.reviewed ? '✓' : '-'}</td>
                   <td>
-                    <button
-                      className="btn btn-sm"
-                      onClick={() => openCaseDetail(detail)}
-                    >
+                    <button className="btn btn-sm" onClick={() => openCaseDetail(detail)}>
                       Ver
                     </button>
                   </td>
                 </tr>
               ))}
+              {details.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="empty-row">
+                    No hay casos para este filtro.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -223,18 +380,17 @@ function RunDetailPage() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Detalle del Caso: {selectedCase.case_id}</h2>
-              <button
-                className="btn-close"
-                onClick={() => setSelectedCase(null)}
-              >
+              <button className="btn-close" onClick={() => setSelectedCase(null)}>
                 ×
               </button>
             </div>
+
             <div className="modal-body">
               <div className="detail-section">
                 <h3>Datos del Caso</h3>
                 <pre>{JSON.stringify(selectedCase.case_data, null, 2)}</pre>
               </div>
+
               <div className="detail-section">
                 <h3>Comparación</h3>
                 <div className="comparison">
@@ -246,11 +402,7 @@ function RunDetailPage() {
                   </div>
                   <div>
                     <strong>Match:</strong>{' '}
-                    <span
-                      className={
-                        selectedCase.match ? 'match-yes' : 'match-no'
-                      }
-                    >
+                    <span className={selectedCase.match ? 'match-yes' : 'match-no'}>
                       {selectedCase.match ? 'Sí' : 'No'}
                     </span>
                   </div>
@@ -261,18 +413,21 @@ function RunDetailPage() {
                   )}
                 </div>
               </div>
+
               {selectedCase.raw && (
                 <div className="detail-section">
                   <h3>Raw Response</h3>
                   <pre>{selectedCase.raw}</pre>
                 </div>
               )}
-              {Object.keys(selectedCase.meta).length > 0 && (
+
+              {selectedCase.meta && Object.keys(selectedCase.meta).length > 0 && (
                 <div className="detail-section">
                   <h3>Metadata</h3>
                   <pre>{JSON.stringify(selectedCase.meta, null, 2)}</pre>
                 </div>
               )}
+
               <div className="detail-section">
                 <h3>Comentarios</h3>
                 <div className="comment-form">
@@ -280,41 +435,32 @@ function RunDetailPage() {
                     <label>Comentario:</label>
                     <textarea
                       value={commentForm.comment}
-                      onChange={(e) =>
-                        setCommentForm({ ...commentForm, comment: e.target.value })
-                      }
+                      onChange={(e) => setCommentForm({ ...commentForm, comment: e.target.value })}
                       rows={3}
                     />
                   </div>
+
                   <div className="form-group">
                     <label>Tag:</label>
                     <input
                       type="text"
                       value={commentForm.tag}
-                      onChange={(e) =>
-                        setCommentForm({ ...commentForm, tag: e.target.value })
-                      }
+                      onChange={(e) => setCommentForm({ ...commentForm, tag: e.target.value })}
                     />
                   </div>
+
                   <div className="form-group">
                     <label>
                       <input
                         type="checkbox"
                         checked={commentForm.reviewed}
-                        onChange={(e) =>
-                          setCommentForm({
-                            ...commentForm,
-                            reviewed: e.target.checked,
-                          })
-                        }
+                        onChange={(e) => setCommentForm({ ...commentForm, reviewed: e.target.checked })}
                       />
                       Revisado
                     </label>
                   </div>
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleSaveComment}
-                  >
+
+                  <button className="btn btn-primary" onClick={handleSaveComment}>
                     Guardar
                   </button>
                 </div>

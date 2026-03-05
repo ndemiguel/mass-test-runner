@@ -77,6 +77,7 @@ export interface PluginInfo {
   display_name: string
   status: string
   error_message: string | null
+  code?: string | null  // Código del plugin (opcional, solo cuando se solicita)
   config_schema: Record<string, any>
   created_at: string
   updated_at: string
@@ -153,8 +154,10 @@ export const apiService = {
   },
 
   // Obtener un plugin
-  getPlugin: async (pluginName: string): Promise<PluginInfo> => {
-    const response = await api.get(`/api/plugins/${pluginName}`)
+  getPlugin: async (pluginName: string, includeCode: boolean = false): Promise<PluginInfo> => {
+    const response = await api.get(`/api/plugins/${pluginName}`, {
+      params: { include_code: includeCode }
+    })
     return response.data
   },
 
