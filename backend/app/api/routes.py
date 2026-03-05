@@ -190,14 +190,20 @@ def export_csv(run_id: str, store: ResultStore = Depends(get_store)):
     
     # Headers
     writer.writerow([
-        "case_id", "truth", "pred_value", "match", "pred_ok", "pred_status",
+        "case_id", "nro_pedido", "truth", "pred_value", "match", "pred_ok", "pred_status",
         "mismatch_reason", "comment", "tag", "reviewed"
     ])
     
     # Datos
     for d in details:
+        # Extraer nro_pedido de case_data (puede ser dict o None)
+        nro_pedido = ""
+        if d.case_data and isinstance(d.case_data, dict):
+            nro_pedido = d.case_data.get("nro_pedido", "") or ""
+        
         writer.writerow([
             d.case_id,
+            nro_pedido,
             d.truth or "",
             d.pred_value or "",
             d.match,

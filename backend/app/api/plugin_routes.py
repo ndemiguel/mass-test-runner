@@ -1,5 +1,5 @@
 """Endpoints para gestión de plugins"""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from datetime import datetime
@@ -100,7 +100,7 @@ def list_plugins(db: Session = Depends(get_db)):
 
 
 @router.get("/{plugin_name}", response_model=PluginInfo)
-def get_plugin(plugin_name: str, db: Session = Depends(get_db)):
+def get_plugin(plugin_name: str, include_code: bool = Query(False, description="Incluir código del plugin"), db: Session = Depends(get_db)):
     """Obtiene información de un plugin"""
     # Si es built-in
     if plugin_name == "demo":
@@ -109,6 +109,7 @@ def get_plugin(plugin_name: str, db: Session = Depends(get_db)):
             display_name="Demo Plugin",
             status="active",
             error_message=None,
+            code=None,  # Los built-in no tienen código editable
             config_schema={"num_casos": "int", "error_rate": "float"},
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
@@ -124,6 +125,7 @@ def get_plugin(plugin_name: str, db: Session = Depends(get_db)):
         display_name=plugin.display_name,
         status=plugin.status,
         error_message=plugin.error_message,
+        code=plugin.code if include_code else None,  # Solo incluir código si se solicita explícitamente
         config_schema=plugin.config_schema,
         created_at=plugin.created_at,
         updated_at=plugin.updated_at,

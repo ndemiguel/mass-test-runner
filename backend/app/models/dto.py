@@ -118,6 +118,7 @@ class PluginInfo(BaseModel):
     display_name: str
     status: str
     error_message: Optional[str] = None
+    code: Optional[str] = None  # Código del plugin (opcional, solo cuando se solicita explícitamente)
     config_schema: Dict[str, Any] = {}
     created_at: datetime
     updated_at: datetime
