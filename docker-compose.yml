@@ -1,8 +1,9 @@
-version: '3.8'
+version: "3.8"
 
 services:
   postgres:
     image: postgres:15
+    container_name: mass_test_runner_postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -11,6 +12,49 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d test_ia_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mass_test_runner_backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - /mnt/upload:/app/upload
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/test_ia_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: test_ia_db
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mass_test_runner_frontend
+    depends_on:
+      - backend
+    ports:
+      - "3015:3015"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      VITE_API_URL: http://bmlnxtest01.catmain.local:8000
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 3015"
 
 volumes:
   postgres_data:

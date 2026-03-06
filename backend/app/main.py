@@ -12,20 +12,11 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Orígenes permitidos
-origins = [
-    "http://bmlnxtest01.catmain.local:3015",
-    "http://localhost:3015",
-    "http://localhost:5174",
-    "http://localhost:5173",
-    "http://localhost:3000",
-]
-
-# CORS
+# CORS abierto para cualquier origen
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origin_regex=".*",   # permite cualquier origen
+    allow_credentials=False,    # si usás cookies / auth 
     allow_methods=["*"],
     allow_headers=["*"],
 )

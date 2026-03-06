@@ -6,10 +6,11 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3015,
+    strictPort: true,
     allowedHosts: ['bmlnxtest01.catmain.local'],
     proxy: {
       '/api': {
-        target: 'http://bmlnxtest01.catmain.local:8000',
+        target: 'http://backend:8000',
         changeOrigin: true,
       },
     },
