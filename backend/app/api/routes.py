@@ -92,6 +92,7 @@ def list_runs(
     summaries = []
     for run in runs:
         # Contar detalles
+        total = store.get_run_details_count(run.run_id)
         mismatches = store.get_run_details_count(run.run_id, filter_type="mismatches")
         errors = store.get_run_details_count(run.run_id, filter_type="errors")
         
@@ -100,10 +101,11 @@ def list_runs(
             plugin_name=run.plugin_name,
             status=run.status,
             created_at=run.created_at,
+            config=run.config,
             accuracy=run.accuracy,
             coverage=run.coverage,
             error_rate=run.error_rate,
-            total_cases=run.total_cases,
+            total_cases=run.total_cases if run.total_cases is not None else total,
             mismatches=mismatches,
             errors=errors,
             processed_cases=run.processed_cases
@@ -230,9 +232,9 @@ def get_run(run_id: str, db: Session = Depends(get_db), store: ResultStore = Dep
     if not run:
         raise HTTPException(status_code=404, detail="Run no encontrado")
     
+    total = store.get_run_details_count(run.run_id)
     mismatches = store.get_run_details_count(run.run_id, filter_type="mismatches")
     errors = store.get_run_details_count(run.run_id, filter_type="errors")
-    print(run.config)
     return RunSummary(
         run_id=run.run_id,
         plugin_name=run.plugin_name,
@@ -242,7 +244,7 @@ def get_run(run_id: str, db: Session = Depends(get_db), store: ResultStore = Dep
         accuracy=run.accuracy,
         coverage=run.coverage,
         error_rate=run.error_rate,
-        total_cases=run.total_cases,
+        total_cases=run.total_cases if run.total_cases is not None else total,
         mismatches=mismatches,
         errors=errors,
         processed_cases=run.processed_cases

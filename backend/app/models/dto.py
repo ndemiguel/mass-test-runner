@@ -53,12 +53,12 @@ class RunSummary(BaseModel):
     run_id: str
     plugin_name: str
     status: str
-    config: Optional[Dict]
+    config: Optional[Dict[str, Any]] = None
     created_at: datetime
     accuracy: Optional[float] = None
     coverage: Optional[float] = None
     error_rate: Optional[float] = None
-    total_cases: int
+    total_cases: int = 0
     mismatches: int
     errors: int
     processed_cases: Optional[int] = None  # Casos procesados (para progreso)

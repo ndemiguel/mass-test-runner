@@ -17,7 +17,7 @@ config = context.config
 # Override sqlalchemy.url from environment variable
 database_url = os.getenv(
     "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/test_ia_db"
+    "postgresql+psycopg://postgres:postgres@bmlnxtest01.catmain.local:5432/test_ia_db"
 )
 config.set_main_option("sqlalchemy.url", database_url)
 
