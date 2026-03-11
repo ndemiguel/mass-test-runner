@@ -31,6 +31,7 @@ services:
     volumes:
       - ./backend:/app
       - /mnt/upload:/app/upload
+      - /home/jromano/docker/nginx/certs:/certs:ro
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/test_ia_db
       POSTGRES_USER: postgres
@@ -38,7 +39,16 @@ services:
       POSTGRES_DB: test_ia_db
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    command: >
+      sh -c "
+      alembic upgrade head &&
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --ssl-certfile /certs/cert.crt
+      --ssl-keyfile /certs/key.key
+      --reload
+      "
 
   frontend:
     build:
@@ -53,8 +63,12 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      VITE_API_URL: http://bmlnxtest01.catmain.local:8000
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 3015"
+      VITE_API_URL: https://bmlnxtest01.catmain.local:8000
+    command: >
+      sh -c "
+      npm install &&
+      npm run dev -- --host 0.0.0.0 --port 3015
+      "
 
 volumes:
   postgres_data:
